@@ -20,7 +20,7 @@ public class Main {
     public static void main(String[] args) {
         try {
             Properties properties = new Properties();
-            properties.load(new FileInputStream("app/src/main/resources/config.properties"));
+            properties.load(Main.class.getClassLoader().getResourceAsStream("config.properties"));
 
             username = properties.getProperty("username");
             password = properties.getProperty("password");
