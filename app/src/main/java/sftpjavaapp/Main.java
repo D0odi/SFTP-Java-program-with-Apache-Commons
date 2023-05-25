@@ -53,7 +53,7 @@ public class Main {
         try {
             FileSystemManager manager = VFS.getManager();
 
-            FileObject local = manager.resolveFile(System.getProperty("user.dir") + "/" + localDir + localFile);
+            FileObject local = manager.resolveFile(localDir + localFile);
             FileObject remote = manager.resolveFile("sftp://" + username + ":" + password + "@localhost:2222/" + uploadDir + "/" + remoteFile);
 
             if (isUpload) {
