@@ -9,7 +9,7 @@ This application allows you to manage files using SFTP. It utilizes Docker for t
 Use the [atmoz/sftp](https://hub.docker.com/r/atmoz/sftp) docker image to create a container.
 
 ```bash
-docker run -p 22:22 -d atmoz/sftp foo:pass:::upload
+docker run -p 2222:22 -d atmoz/sftp foo:pass:::upload
 ```
 where:
 
