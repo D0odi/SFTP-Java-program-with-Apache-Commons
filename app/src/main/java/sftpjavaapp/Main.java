@@ -8,53 +8,77 @@ import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
 
 import java.io.File;
-import java.io.FileInputStream;
+import java.util.ArrayList;
 import java.util.Properties;
 
 public class Main {
     private static String username;
     private static String password;
-    private static String uploadDir;
-    private static String localDir;
+    private static String hostPort;
+    private static Properties properties;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws MissingConfigParameterException{
         try {
-            Properties properties = new Properties();
+            properties = new Properties();
             properties.load(Main.class.getClassLoader().getResourceAsStream("config.properties"));
 
             username = properties.getProperty("username");
             password = properties.getProperty("password");
-            uploadDir = properties.getProperty("uploadDir");
-            localDir = properties.getProperty("localDir");
+            hostPort = properties.getProperty("hostPort");
 
+            // SFTP connection to container via SSH key pair
             String privateKeyPath = properties.getProperty("privateKeyPath");
-            String job = properties.getProperty("job");
-            String localFile = properties.getProperty("localFile");
-            String remoteFile = properties.getProperty("remoteFile");
-
             FileSystemOptions fsOptions = new FileSystemOptions();
             File privateKeyFile = new File(privateKeyPath);
             IdentityInfo identityInfo = new IdentityInfo(privateKeyFile);
-
             SftpFileSystemConfigBuilder.getInstance().setStrictHostKeyChecking(fsOptions, "no");
             SftpFileSystemConfigBuilder.getInstance().setIdentityInfo(fsOptions, identityInfo);
 
-            if (job.equals("upload")) {
-                manageFile(localFile, remoteFile, true);
-            } else if (job.equals("download")) {
-                manageFile(localFile, remoteFile, false);
+            String job = properties.getProperty("job");
+
+            // Program runs depending on the job type
+            if (job.equals("upload_single")) {
+                manageSingleFile(true);
+            } else if (job.equals("download_single")) {
+                manageSingleFile(false);
             }
+            else if (job.equals("get_file_names")) {
+                listFileNames();
+            }
+            else if (job == null || job.isEmpty()) {
+                throw new MissingConfigParameterException("job");
+            }
+
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    public static void manageFile(String localFile, String remoteFile, boolean isUpload) {
+    public static void manageSingleFile(boolean isUpload) throws MissingConfigParameterException{
+        String localFile = properties.getProperty("localFile");
+        String remoteFile = properties.getProperty("remoteFile");
+        String remoteDir = properties.getProperty("remoteDir");
+        String localDir = properties.getProperty("localDir");
+
+        if(localFile == null || localFile.isEmpty()) {
+            throw new MissingConfigParameterException("localFile");
+        }
+        if(remoteFile == null || remoteFile.isEmpty()) {
+            throw new MissingConfigParameterException("remoteFile");
+        }
+        if(remoteDir == null || remoteDir.isEmpty()) {
+            throw new MissingConfigParameterException("remoteDir");
+        }
+        if(localDir == null || localDir.isEmpty()) {
+            throw new MissingConfigParameterException("localDir");
+        }
+
         try {
             FileSystemManager manager = VFS.getManager();
 
             FileObject local = manager.resolveFile(localDir + localFile);
-            FileObject remote = manager.resolveFile("sftp://" + username + ":" + password + "@localhost:2222/" + uploadDir + "/" + remoteFile);
+            FileObject remote = manager.resolveFile("sftp://" + username + ":" + password + "@localhost:" + hostPort + "/" + remoteDir + "/" + remoteFile);
 
             if (isUpload) {
                 remote.copyFrom(local, Selectors.SELECT_SELF);
@@ -68,6 +92,42 @@ public class Main {
         } catch (FileSystemException e) {
             e.printStackTrace();
         }
+    }
+
+    public static void listFileNames() throws MissingConfigParameterException {
+        String remoteDir = properties.getProperty("remoteDir");
+
+        if(remoteDir == null || remoteDir.isEmpty()) {
+            throw new MissingConfigParameterException("remoteDir");
+        }
+
+        ArrayList<String> fileNames = new ArrayList<>();
+
+        try {
+            FileSystemManager manager = VFS.getManager();
+            FileObject remote = manager.resolveFile("sftp://" + username + ":" + password + "@localhost:" + hostPort + "/" + remoteDir);
+
+            if (remote.exists() && remote.isFolder()) {
+                FileObject[] children = remote.getChildren();
+                for (FileObject child : children) {
+                    if (!child.isFolder()) {
+                        fileNames.add(child.getName().getBaseName());
+                    }
+                }
+            }
+            manager.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        for (String name : fileNames) {
+            System.out.println(name);
+        }
+    }
+
+    public static void fetchFiles() {
+
     }
 }
 
