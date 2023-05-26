@@ -13,9 +13,10 @@ docker run -p 2222:22 -d atmoz/sftp foo:pass:::upload
 ```
 where:
 
-- foo is the username
-- pass is the password
-- upload is the directory to which the SFTP user has access
+- **foo** is the username
+- **pass** is the password
+- **upload** is the directory to which the SFTP user has access
+- you can use other host port instead of **2222**
 
 ## Setting Up SSH keys
 Generate a new SSH key pair:
@@ -60,24 +61,26 @@ Open config.properties and edit it with your details:
 ```bash
 username=USERNAME
 password=PASSWORD
-uploadDir=REMOTE_DIRECTORY
+remoteDir=REMOTE_DIRECTORY
 privateKeyPath=LOCAL_PRIVATE_SSH_KEY_PATH
 job=JOB_TYPE
 localDir=ABSOLUTE_PATH_FOR_LOCAL_DIRECTORY
 localFile=FILE_NAME
 remoteFile=FILE_NAME
+hostPort=HOST_PORT
 ```
 
-Currently only supports "**upload**", "**download**" job types
+Currently only supports "**upload**", "**download**", "**get_file_names**" job types
 
 Example:
 ```bash
 username=foo
 password=pass
-uploadDir=upload
+remoteDir=upload
 privateKeyPath=C:/Users/natek/.ssh/id_rsa_sftp
-job=upload
+job=get_file_names
 localDir=D:/projects/SFTPjavaApp/app/src/main/resources/
-localFile=test1.txt
+localFile=test.txt
 remoteFile=upload.txt
+hostPort=2222
 ```
