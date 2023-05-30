@@ -6,6 +6,8 @@ package sftpjavaapp;
 import org.apache.commons.vfs2.*;
 import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
+import sftpjavaapp.exceptions.FileExistsException;
+import sftpjavaapp.exceptions.MissingConfigParameterException;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -17,7 +19,7 @@ public class Main {
     private static String hostPort;
     private static Properties properties;
 
-    public static void main(String[] args) throws MissingConfigParameterException{
+    public static void main(String[] args) {
         try {
             properties = new Properties();
             properties.load(Main.class.getClassLoader().getResourceAsStream("config.properties"));
@@ -37,13 +39,22 @@ public class Main {
             String job = properties.getProperty("job");
 
             // Program runs depending on the job type
-            if (job.equals("upload_single")) {
-                manageSingleFile(true);
-            } else if (job.equals("download_single")) {
-                manageSingleFile(false);
+            if (job.equals("upload_file")) {
+                migrateFile(true);
+            } else if (job.equals("download_file")) {
+                migrateFile(false);
             }
             else if (job.equals("get_file_names")) {
                 listFileNames();
+            }
+            else if (job.equals("download_dir")) {
+                migrateDir(false);
+            }
+            else if (job.equals("upload_dir")) {
+                migrateDir(true);
+            }
+            else if (job.equals("delete_file")) {
+                // deletes file from remote dir
             }
             else if (job == null || job.isEmpty()) {
                 throw new MissingConfigParameterException("job");
@@ -55,17 +66,13 @@ public class Main {
         }
     }
 
-    public static void manageSingleFile(boolean isUpload) throws MissingConfigParameterException{
-        String localFile = properties.getProperty("localFile");
-        String remoteFile = properties.getProperty("remoteFile");
+    public static void migrateFile(boolean local_to_remote) throws MissingConfigParameterException, FileExistsException {
+        String fileName = properties.getProperty("fileName");
         String remoteDir = properties.getProperty("remoteDir");
         String localDir = properties.getProperty("localDir");
 
-        if(localFile == null || localFile.isEmpty()) {
-            throw new MissingConfigParameterException("localFile");
-        }
-        if(remoteFile == null || remoteFile.isEmpty()) {
-            throw new MissingConfigParameterException("remoteFile");
+        if(fileName == null || fileName.isEmpty()) {
+            throw new MissingConfigParameterException("fileName");
         }
         if(remoteDir == null || remoteDir.isEmpty()) {
             throw new MissingConfigParameterException("remoteDir");
@@ -77,12 +84,20 @@ public class Main {
         try {
             FileSystemManager manager = VFS.getManager();
 
-            FileObject local = manager.resolveFile(localDir + localFile);
-            FileObject remote = manager.resolveFile("sftp://" + username + ":" + password + "@localhost:" + hostPort + "/" + remoteDir + "/" + remoteFile);
+            FileObject local = null;
+            FileObject remote = null;
 
-            if (isUpload) {
+            if (local_to_remote) {
+                local = manager.resolveFile(localDir + fileName);
+                String remote_file_name = local.getName().getBaseName();
+                remote = manager.resolveFile("sftp://" + username + ":" + password + "@localhost:" + hostPort + "/" + remoteDir + "/" + remote_file_name);
+                if (remote.exists()) { throw new FileExistsException(remote_file_name); }
                 remote.copyFrom(local, Selectors.SELECT_SELF);
             } else {
+                remote = manager.resolveFile("sftp://" + username + ":" + password + "@localhost:" + hostPort + "/" + remoteDir + "/" + fileName);
+                String local_file_name = remote.getName().getBaseName();
+                local = manager.resolveFile(localDir + local_file_name);
+                if (local.exists()) { throw new FileExistsException(local_file_name); }
                 local.copyFrom(remote, Selectors.SELECT_SELF);
             }
 
@@ -111,7 +126,10 @@ public class Main {
                 FileObject[] children = remote.getChildren();
                 for (FileObject child : children) {
                     if (!child.isFolder()) {
-                        fileNames.add(child.getName().getBaseName());
+                        fileNames.add(child.getName().getBaseName() + child.getType());
+                    }
+                    else {
+                        fileNames.add(child.getName().getBaseName() + " (dir)");
                     }
                 }
             }
@@ -126,8 +144,74 @@ public class Main {
         }
     }
 
-    public static void fetchFiles() {
+    public static void migrateDir(boolean local_to_remote) throws MissingConfigParameterException {
+        String remoteDir = properties.getProperty("remoteDir");
+        String localDir = properties.getProperty("localDir");
+        String filesOnly = properties.getProperty("filesOnly");
 
+        if(remoteDir == null || remoteDir.isEmpty()) {
+            throw new MissingConfigParameterException("remoteDir");
+        }
+        if(localDir == null || localDir.isEmpty()) {
+            throw new MissingConfigParameterException("localDir");
+        }
+        if(filesOnly == null || filesOnly.isEmpty()) {
+            throw new MissingConfigParameterException("filesOnly");
+        }
+
+
+        try {
+            FileSystemManager manager = VFS.getManager();
+
+            String sftp = "sftp://" + username + ":" + password + "@localhost:" + hostPort + "/" + remoteDir;
+
+            FileObject source = local_to_remote ? manager.resolveFile(localDir) : manager.resolveFile(sftp);
+            FileObject dest = local_to_remote ? manager.resolveFile(sftp + "/" + source.getName().getBaseName())
+                                                : manager.resolveFile(localDir + "/" + source.getName().getBaseName());
+
+            if (dest.exists()) {throw new FileExistsException(dest.getName().getBaseName());}
+
+
+            if (filesOnly.equals("no")) {
+                recursiveMigrationHelper(source, dest, manager);
+            } else if (filesOnly.equals("yes")) {
+                FileObject[] sourceChildren = source.getChildren();
+                for (FileObject sourceChild : sourceChildren) {
+                    String baseName = sourceChild.getName().getBaseName();
+                    // migrate file
+                    if (sourceChild.isFile()) {
+                        FileObject destChild = manager.resolveFile(dest + "/" + baseName);
+                        if (destChild.exists()) {throw new FileExistsException(destChild.getName().getBaseName());}
+                        destChild.copyFrom(sourceChild, Selectors.SELECT_SELF);
+                    }
+                }
+            } else {
+                throw new MissingConfigParameterException("filesOnly");
+            }
+
+            manager.close();
+            source.close();
+            dest.close();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void recursiveMigrationHelper(FileObject source, FileObject dest, FileSystemManager manager) throws FileSystemException, FileExistsException {
+        FileObject[] sourceChildren = source.getChildren();
+        for (FileObject sourceChild : sourceChildren) {
+            String baseName = sourceChild.getName().getBaseName();
+            // migrate file
+            if (sourceChild.isFile()) {
+                FileObject destChild = manager.resolveFile(dest + "/" + baseName);
+                destChild.copyFrom(sourceChild, Selectors.SELECT_SELF);
+            }
+            else {
+                FileObject innerDest = manager.resolveFile(dest + "/" + baseName);
+                recursiveMigrationHelper(sourceChild, innerDest, manager);
+            }
+        }
     }
 }
 

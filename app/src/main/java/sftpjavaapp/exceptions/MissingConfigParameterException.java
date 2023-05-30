@@ -1,4 +1,4 @@
-package sftpjavaapp;
+package sftpjavaapp.exceptions;
 
 public class MissingConfigParameterException extends Exception {
     public MissingConfigParameterException(String parameter) {
