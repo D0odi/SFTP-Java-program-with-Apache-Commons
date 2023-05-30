@@ -9,14 +9,16 @@ This application allows you to manage files using SFTP. It utilizes Docker for t
 Use the [atmoz/sftp](https://hub.docker.com/r/atmoz/sftp) docker image to create a container.
 
 ```bash
-docker run -p 2222:22 -d atmoz/sftp foo:pass:::upload
+docker run -p <host port>**:22 -d atmoz/sftp <username>:<password>:::upload
 ```
-where:
+In my example, I use:
 
 - **foo** is the username
 - **pass** is the password
 - **upload** is the directory to which the SFTP user has access
 - you can use other host port instead of **2222**
+
+Ex: docker run -p 2222:22 -d atmoz/sftp foo:pass:::upload
 
 ## Setting Up SSH keys
 Generate a new SSH key pair:
@@ -51,7 +53,7 @@ git clone <repository_url>
 ```
 Navigate to the resources directory:
 ```bash
-cd SFTPjavaApp/app/src/main/resources/
+cd sftp-java-program-with-apache-commons1/app/src/main/resources/
 ```
 Create a new config.properties file:
 ```bash
@@ -59,18 +61,27 @@ cp example.config.properties config.properties
 ```
 Open config.properties and edit it with your details:
 ```bash
-username=USERNAME
-password=PASSWORD
-remoteDir=REMOTE_DIRECTORY
-privateKeyPath=LOCAL_PRIVATE_SSH_KEY_PATH
-job=JOB_TYPE
-localDir=ABSOLUTE_PATH_FOR_LOCAL_DIRECTORY
-localFile=FILE_NAME
-remoteFile=FILE_NAME
+username=DOCKER_USERNAME
+password=DOCKER_PASSWORD
 hostPort=HOST_PORT
+privateKeyPath=SSH_PRIVATE_KEY_PATH (including file name)
+job= download_dir / upload_dir / upload_file / download_file / get_file_names
+
+remoteDir=REMOTE_DIRECTORY_PATH
+localDir=LOCAL_DIRECTORY_PATH
+fileName=FILENAME
+filesOnly= no / yes
 ```
 
-Currently only supports "**upload**", "**download**", "**get_file_names**" job types
+Currently supports:
+
+**Job type / config properties that has to be set** :
+
+- upload_file / fileName, localDir, remoteDir
+- download_file / fileName, localDir, remoteDir
+- upload_dir / remoteDir, localDir, filesOnly
+- download_dir / remoteDir, localDir, filesOnly
+- get_file_names / remoteDir
 
 Example:
 ```bash
@@ -79,8 +90,19 @@ password=pass
 remoteDir=upload
 privateKeyPath=C:/Users/natek/.ssh/id_rsa_sftp
 job=get_file_names
-localDir=D:/projects/SFTPjavaApp/app/src/main/resources/
+localDir=D:/projects/sftp-java-program-with-apache-commons1/app/src/main/resources/
 localFile=test.txt
 remoteFile=upload.txt
 hostPort=2222
+```
+## Build and Run
+
+Navigate to the cloned repository 
+```bash
+cd sftp-java-program-with-apache-commons1
+```
+Run when job type and properties are set:
+
+```bash
+gradle run
 ```
